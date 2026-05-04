@@ -1,11 +1,11 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Mintlify Starter Kit",
+  "name": "Vibrant Wellness Portal API",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#0F766E",
+    "light": "#14B8A6",
+    "dark": "#115E59"
   },
   "favicon": "/favicon.svg",
   "navigation": {
@@ -18,35 +18,43 @@
             "pages": [
               "index",
               "quickstart",
-              "development"
+              "authentication",
+              "api-keys"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "concepts/orders",
+              "concepts/reports",
+              "concepts/test-catalog"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Workflows",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/components",
-              "essentials/reusable-snippets"
+              "guides/place-order",
+              "guides/track-order",
+              "guides/manage-orders",
+              "guides/read-reports"
             ]
           },
           {
-            "group": "Agent ready",
+            "group": "Platform",
             "pages": [
-              "agent-ready/prompt",
-              "agent-ready/visibility",
-              "agent-ready/contextual",
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "platform/errors",
+              "platform/pagination",
+              "platform/rate-limits",
+              "platform/webhooks",
+              "platform/environments"
+            ]
+          },
+          {
+            "group": "Coming soon",
+            "pages": [
+              "coming-soon/patients",
+              "coming-soon/providers",
+              "coming-soon/payment-methods"
             ]
           }
         ]
@@ -55,18 +63,48 @@
         "tab": "API reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Overview",
             "pages": [
               "api-reference/introduction"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Orders",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api-reference/orders/create",
+              "api-reference/orders/list",
+              "api-reference/orders/get",
+              "api-reference/orders/update",
+              "api-reference/orders/cancel"
+            ]
+          },
+          {
+            "group": "Tracking",
+            "pages": [
+              "api-reference/tracking/get",
+              "api-reference/tracking/events"
+            ]
+          },
+          {
+            "group": "Reports",
+            "pages": [
+              "api-reference/reports/list",
+              "api-reference/reports/get",
+              "api-reference/reports/download",
+              "api-reference/reports/list-by-order"
+            ]
+          },
+          {
+            "group": "Test catalog",
+            "pages": [
+              "api-reference/tests/list"
+            ]
+          },
+          {
+            "group": "Webhooks",
+            "pages": [
+              "api-reference/webhooks/order-status-changed",
+              "api-reference/webhooks/report-ready"
             ]
           }
         ]
@@ -75,14 +113,19 @@
     "global": {
       "anchors": [
         {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
+          "anchor": "Status",
+          "href": "https://status.vibrant-wellness.example.com",
+          "icon": "signal-bars"
         },
         {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
+          "anchor": "Changelog",
+          "href": "https://developers.vibrant-wellness.example.com/changelog",
+          "icon": "list-timeline"
+        },
+        {
+          "anchor": "Support",
+          "href": "mailto:portal-api@vibrant-wellness.example.com",
+          "icon": "headset"
         }
       ]
     }
@@ -94,33 +137,29 @@
   "navbar": {
     "links": [
       {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
+        "label": "Portal",
+        "href": "https://portal.vibrant-wellness.example.com"
       }
     ],
     "primary": {
       "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
+      "label": "Get API key",
+      "href": "https://portal.vibrant-wellness.example.com/settings/api-keys"
     }
   },
   "contextual": {
     "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity"
+    ]
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+      "x": "https://x.com/vibrantwellness",
+      "linkedin": "https://linkedin.com/company/vibrant-wellness"
     }
   }
 }

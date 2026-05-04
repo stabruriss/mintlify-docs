@@ -1,0 +1,82 @@
+---
+title: "Patients (coming soon)"
+description: "First-class patient resources you can reference across orders. Shape preview — not yet exposed."
+icon: "user"
+---
+
+<Note>
+  These endpoints are in design. The shapes below are reference contracts and may change before launch. To stay informed, subscribe at the bottom of the [changelog](https://developers.vibrant-wellness.example.com/changelog).
+</Note>
+
+Today, every order embeds the patient inline. That's fine for one-off integrations but creates duplicates when the same patient orders multiple times. The upcoming Patients API lets you persist a patient once and reference the ID on subsequent orders.
+
+## Why this matters
+
+<CardGroup cols={2}>
+  <Card title="One source of truth" icon="user-check">
+    Update a patient's address once and every future order picks it up.
+  </Card>
+  <Card title="Cross-order history" icon="clock-rotate-left">
+    Pull every report and order for a patient with one query.
+  </Card>
+  <Card title="Cleaner reconciliation" icon="link">
+    Vibrant patient IDs become foreign keys in your EHR.
+  </Card>
+  <Card title="Consent management" icon="file-signature">
+    Capture and version-track consent without re-prompting on every order.
+  </Card>
+</CardGroup>
+
+## Planned endpoints
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/v1/patients` | Create a patient. |
+| `GET` | `/v1/patients` | List/search patients. |
+| `GET` | `/v1/patients/{patient_id}` | Retrieve. |
+| `PATCH` | `/v1/patients/{patient_id}` | Update mutable fields. |
+| `GET` | `/v1/patients/{patient_id}/orders` | List orders. |
+| `GET` | `/v1/patients/{patient_id}/reports` | List reports. |
+
+## Shape preview
+
+```json
+{
+  "id": "pat_01HZ7M3K2N8R9Q",
+  "external_id": "pat_ext_8821",
+  "first_name": "Avery",
+  "last_name": "Nguyen",
+  "date_of_birth": "1989-03-14",
+  "sex": "female",
+  "email": "avery.nguyen@example.com",
+  "phone": "+14155550123",
+  "shipping_address": {
+    "line1": "1200 Market St",
+    "city": "San Francisco",
+    "state": "CA",
+    "postal_code": "94103",
+    "country": "US"
+  },
+  "consent": {
+    "treatment_results": { "granted_at": "2026-04-12T10:00:00Z" },
+    "marketing": null
+  },
+  "metadata": {},
+  "created_at": "2026-04-12T10:00:00Z",
+  "updated_at": "2026-04-12T10:00:00Z"
+}
+```
+
+## Migration path
+
+When the Patients API ships, existing inline patient blocks on orders will continue to work. Vibrant will retroactively create patient resources for every distinct `external_id` already on file, so your existing data shows up under `/v1/patients` automatically. New code can begin referencing `patient_id` on `POST /v1/orders`:
+
+```jsonc
+// Today
+{ "patient": { "first_name": "...", "..." } }
+
+// Future
+{ "patient_id": "pat_01HZ7M3K2N8R9Q" }
+```
+
+Both forms will be accepted indefinitely. Migration is opt-in.

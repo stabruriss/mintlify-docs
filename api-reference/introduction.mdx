@@ -1,33 +1,63 @@
 ---
-title: 'Introduction'
-description: 'Example section for showcasing API endpoints'
+title: "API reference overview"
+description: "REST endpoints for orders, tracking, reports, and the test catalog. All authenticated with bearer tokens."
+icon: "terminal"
 ---
 
-<Note>
-  If you're not looking to build API reference documentation, you can delete
-  this section by removing the api-reference folder.
-</Note>
+The Vibrant Wellness Portal API is a REST API. All endpoints accept and return JSON, support bearer authentication, and emit signed webhooks for asynchronous events.
 
-## Welcome
+## Base URLs
 
-There are two ways to build API documentation: [OpenAPI](https://mintlify.com/docs/api-playground/openapi/setup) and [MDX components](https://mintlify.com/docs/api-playground/mdx/configuration). For the starter kit, we are using the following OpenAPI specification.
+| Environment | URL |
+| --- | --- |
+| Production | `https://api.vibrant-wellness.example.com` |
+| Sandbox | `https://api.sandbox.vibrant-wellness.example.com` |
 
-<Card
-  title="Plant Store Endpoints"
-  icon="leaf"
-  href="https://github.com/mintlify/starter/blob/main/api-reference/openapi.json"
->
-  View the OpenAPI specification file
-</Card>
+All paths shown in this reference are versioned with `/v1/`.
 
 ## Authentication
 
-All API endpoints are authenticated using Bearer tokens and picked up from the specification file.
+Every request requires an `Authorization` header:
 
-```json
-"security": [
-  {
-    "bearerAuth": []
-  }
-]
+```http
+Authorization: Bearer sk_live_01HZ7M3K2N8R9Q...
 ```
+
+Generate keys in the portal. See [Authentication](/authentication) for scope and rotation guidance.
+
+## Conventions
+
+<CardGroup cols={2}>
+  <Card title="Identifiers" icon="fingerprint">
+    Prefixed ULIDs: `ord_...`, `rpt_...`, `pat_...`, `prv_...`, `tst_...`, `evt_...`. URL-safe and case-sensitive.
+  </Card>
+  <Card title="Timestamps" icon="clock">
+    All timestamps are RFC 3339 / ISO 8601 in UTC, e.g. `2026-05-04T14:22:11Z`.
+  </Card>
+  <Card title="Pagination" icon="list">
+    All list endpoints use cursor-based pagination. See [Pagination](/platform/pagination).
+  </Card>
+  <Card title="Errors" icon="triangle-exclamation">
+    Errors share a single envelope. See [Errors](/platform/errors).
+  </Card>
+</CardGroup>
+
+## Available endpoint groups
+
+<CardGroup cols={2}>
+  <Card title="Orders" icon="clipboard-list" href="/api-reference/orders/create">
+    Create, list, retrieve, update, and cancel.
+  </Card>
+  <Card title="Tracking" icon="route" href="/api-reference/tracking/get">
+    Tracking summary and event log.
+  </Card>
+  <Card title="Reports" icon="chart-line" href="/api-reference/reports/list">
+    List, retrieve, and download.
+  </Card>
+  <Card title="Test catalog" icon="vials" href="/api-reference/tests/list">
+    Browse panels enabled for your account.
+  </Card>
+  <Card title="Webhooks" icon="bell" href="/api-reference/webhooks/order-status-changed">
+    Subscribe to status changes and report releases.
+  </Card>
+</CardGroup>

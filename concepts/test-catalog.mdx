@@ -1,0 +1,79 @@
+---
+title: "Test catalog"
+description: "The catalog is the list of test panels enabled for your account, their sample types, and their pricing."
+icon: "vials"
+---
+
+Every order references one or more **tests** by `test_code`. The test catalog endpoint returns the panels currently enabled for your account, including pricing, expected turnaround, and required sample type.
+
+## Why the catalog matters
+
+- The `test_code` is your stable handle. Don't hardcode names or IDs from screenshots.
+- Catalogs differ across accounts. A panel available in the US may not be available to international partners; a custom panel built for one partner is invisible to others.
+- Pricing is per account. Don't display prices from another account's UI.
+
+## Fetching the catalog
+
+```bash
+curl "$VW_API_BASE/v1/tests?category=gut" \
+  -H "Authorization: Bearer $VW_API_KEY"
+```
+
+```json
+{
+  "data": [
+    {
+      "code": "GUT-ZOOMER-3.0",
+      "name": "Gut Zoomer 3.0",
+      "category": "gut",
+      "sample_type": "stool",
+      "fasting_required": false,
+      "turnaround_days": { "min": 7, "max": 14 },
+      "list_price_cents": 49900
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
+```
+
+## Categories
+
+The `category` filter accepts:
+
+| Category | Examples |
+| --- | --- |
+| `gut` | Gut Zoomer, Wheat Zoomer |
+| `nutrition` | Micronutrients, Omega-3 Index |
+| `hormone` | Hormone Panel, Cortisol Awakening Response |
+| `toxins` | Total Tox Burden, Heavy Metals |
+| `cardio` | Lipid Panel Plus, ApoE Genotype |
+
+## Sample types
+
+| Sample | Notes |
+| --- | --- |
+| `blood` | Finger-prick or in-clinic venous draw. Some panels require venous. |
+| `stool` | Home collection only. Stable at room temperature for 14 days. |
+| `urine` | First-morning void or 24-hour collection. Refrigerate. |
+| `saliva` | Multiple collections per day for cortisol panels. |
+
+Pass the right `sample_collection.method` for the panel — see [Place an order](/guides/place-order#sample-collection).
+
+## Caching
+
+The catalog changes rarely (new panels launch quarterly). Cache responses for 24 hours; refetch when:
+
+- A request returns `validation_error` with `code: "test_not_available"`.
+- You receive a `catalog_updated` webhook (coming soon).
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="List tests" icon="terminal" href="/api-reference/tests/list">
+    Endpoint reference with filters.
+  </Card>
+  <Card title="Place an order" icon="flask" href="/guides/place-order">
+    Use a `test_code` to create an order.
+  </Card>
+</CardGroup>

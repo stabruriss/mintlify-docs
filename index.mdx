@@ -1,133 +1,58 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
-icon: 'star'
+title: "Vibrant Wellness Portal API"
+description: "Place lab orders, follow them through the lab, and read reports — all over a single REST API."
 ---
 
-## Setting up
+The Portal API is the developer surface of the Vibrant Wellness platform. Use it to integrate functional-medicine lab testing into your EHR, telehealth, or coaching product without standing up your own logistics, accessioning, or reporting stack.
 
-Get your documentation site up and running in minutes.
-
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Generate an API key, hit the sandbox, and place your first order in under five minutes.
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Authentication" icon="key" href="/authentication">
+    Bearer tokens, sandbox vs production, and rotation guidance.
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Place an order" icon="flask" href="/guides/place-order">
+    Walk through the request that creates an order and ships a kit.
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Read a report" icon="file-lines" href="/guides/read-reports">
+    Retrieve structured biomarker results once a sample is processed.
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## What the API can do today
 
-Everything you need to create world-class documentation.
+<CardGroup cols={2}>
+  <Card title="Orders" icon="clipboard-list" href="/concepts/orders">
+    Create, list, update, and cancel lab test orders for any panel in your catalog.
+  </Card>
+  <Card title="Tracking" icon="route" href="/guides/track-order">
+    Follow an order from kit shipment through sample receipt to lab completion.
+  </Card>
+  <Card title="Reports" icon="chart-line" href="/concepts/reports">
+    Fetch finalized reports as structured JSON or render-ready PDFs.
+  </Card>
+  <Card title="Webhooks" icon="bell" href="/platform/webhooks">
+    Receive `order.status_changed` and `report.ready` events as they happen.
+  </Card>
+</CardGroup>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+## Coming soon
 
-## Make your content agent ready
+These surfaces are designed but not yet exposed publicly. The shapes below are reference contracts — expect minor changes before launch.
 
-Make your docs work for humans and AI agents alike.
+<CardGroup cols={3}>
+  <Card title="Patients" icon="user" href="/coming-soon/patients">
+    Persist patient records once and reference them across orders.
+  </Card>
+  <Card title="Providers" icon="user-doctor" href="/coming-soon/providers">
+    Manage the ordering clinicians attached to your account.
+  </Card>
+  <Card title="Payment methods" icon="credit-card" href="/coming-soon/payment-methods">
+    Store cards on file and bill the patient or the account.
+  </Card>
+</CardGroup>
 
-<Columns cols={2}>
-  <Card
-    title="Prompt component"
-    icon="robot"
-    href="/agent-ready/prompt"
-  >
-    Embed shareable AI prompts readers can copy or open in Cursor.
-  </Card>
-  <Card
-    title="Visibility"
-    icon="eye"
-    href="/agent-ready/visibility"
-  >
-    Show different content to humans and agents reading your docs.
-  </Card>
-  <Card
-    title="Contextual menu"
-    icon="bolt"
-    href="/agent-ready/contextual"
-  >
-    Give readers one-click access to Claude, ChatGPT, Cursor, and more.
-  </Card>
-  <Card
-    title="AI coding tools"
-    icon="wand-magic-sparkles"
-    href="/ai-tools/claude-code"
-  >
-    Set up Claude Code, Cursor, or Windsurf with Mintlify's skill.
-  </Card>
-</Columns>
-
-## Need inspiration?
-
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+<Note>
+  The Portal API is for B2B partners. End-patient access is gated through the Vibrant Wellness consumer apps, not this API.
+</Note>

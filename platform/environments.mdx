@@ -1,0 +1,58 @@
+---
+title: "Environments"
+description: "Sandbox mirrors production with an accelerated clock and zero real-world side effects."
+icon: "layer-group"
+---
+
+Vibrant operates two environments. They share endpoints, payloads, and response shapes — only the side effects differ.
+
+| | Sandbox | Production |
+| --- | --- | --- |
+| Base URL | `https://api.sandbox.vibrant-wellness.example.com` | `https://api.vibrant-wellness.example.com` |
+| Key prefix | `sk_sandbox_` | `sk_live_` |
+| Ships kits | No | Yes |
+| Charges cards | No | Yes |
+| Lifecycle clock | ~10 min end-to-end | Real lab time (1-3 weeks typical) |
+| Webhooks | Yes | Yes |
+| Rate limits | ~50% of production | See [Rate limits](/platform/rate-limits) |
+
+## When to use sandbox
+
+- Local development.
+- CI integration tests.
+- UI previews and screenshots.
+- Onboarding new team members.
+
+## Forcing specific outcomes
+
+The sandbox accepts magic patient `external_id` values to simulate edge cases without waiting for the lifecycle clock:
+
+| `external_id` | Behavior |
+| --- | --- |
+| `sandbox_reject_sample` | Order transitions to `rejected` after `kit_shipped`. |
+| `sandbox_amend_report` | Report releases, then amends 60 seconds later. |
+| `sandbox_critical_value` | Released report contains a `critical` biomarker. |
+| `sandbox_carrier_delay` | Tracking shows a 3-day delivery delay. |
+
+These IDs are sandbox-only; production ignores them.
+
+## Data isolation
+
+Sandbox and production are fully isolated:
+
+- Separate databases.
+- Separate webhook configurations.
+- Separate API keys (a sandbox key is rejected in production and vice versa).
+
+You cannot copy data between environments. Each environment has its own catalog of providers and tests, configured during onboarding.
+
+## Promoting to production
+
+When you're ready to go live:
+
+1. Issue a production key in the portal under **Settings → API keys** with environment `Live`.
+2. Update your deploy config to swap the base URL and the key.
+3. Re-register your webhook endpoint (separate config from sandbox).
+4. Run a single low-stakes order in production to confirm.
+
+There is no shared state — production starts empty.

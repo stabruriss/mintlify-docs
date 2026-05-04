@@ -1,0 +1,83 @@
+---
+title: "Pagination"
+description: "All list endpoints use opaque cursor-based pagination."
+icon: "list"
+---
+
+Every list endpoint returns the same envelope:
+
+```json
+{
+  "data": [/* up to limit records */],
+  "has_more": true,
+  "next_cursor": "eyJjcmVhdGVkX2F0IjoiMjAy..."
+}
+```
+
+To request the next page, pass the `next_cursor` value as the `cursor` query parameter on the next request.
+
+## Why cursors
+
+Offset-based pagination drifts as records are inserted; clients miss or duplicate rows. Cursors encode the position of the last record you saw, so pages stay stable under concurrent writes.
+
+<Warning>
+  Cursors are opaque. Don't decode, mutate, or persist them long-term — their format may change. They're safe to hold during a single pagination loop.
+</Warning>
+
+## Limits
+
+| Parameter | Default | Max |
+| --- | --- | --- |
+| `limit` | 25 | 100 |
+
+A request with `limit=100` and `has_more: false` is the cheapest way to confirm you've drained the result set.
+
+## Iterating
+
+<CodeGroup>
+  ```ts TypeScript
+  async function* paginate<T>(
+    fetcher: (cursor?: string) => Promise<{ data: T[]; has_more: boolean; next_cursor: string | null }>,
+  ): AsyncGenerator<T> {
+    let cursor: string | undefined;
+    do {
+      const page = await fetcher(cursor);
+      yield* page.data;
+      cursor = page.has_more ? page.next_cursor! : undefined;
+    } while (cursor);
+  }
+
+  for await (const order of paginate((cursor) =>
+    listOrders({ status: "completed", limit: 100, cursor }),
+  )) {
+    await ingest(order);
+  }
+  ```
+
+  ```python Python
+  def paginate(fetcher):
+      cursor = None
+      while True:
+          page = fetcher(cursor=cursor)
+          for item in page["data"]:
+              yield item
+          if not page["has_more"]:
+              return
+          cursor = page["next_cursor"]
+  ```
+</CodeGroup>
+
+## Stable ordering
+
+List endpoints sort by `created_at` descending unless documented otherwise. Cursors include both the timestamp and the resource ID, so ties (records with the same millisecond timestamp) are deterministic.
+
+## Time-windowed backfills
+
+For full-history backfills, combine `created_after` with cursor pagination:
+
+```bash
+curl "$VW_API_BASE/v1/orders?created_after=2024-01-01T00:00:00Z&limit=100" \
+  -H "Authorization: Bearer $VW_API_KEY"
+```
+
+The cursor stays valid even if `created_after` is repeated on subsequent requests.

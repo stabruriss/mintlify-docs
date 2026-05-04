@@ -1,0 +1,83 @@
+---
+title: "Rate limits"
+description: "How requests are throttled and how to react when you're throttled."
+icon: "gauge-high"
+---
+
+The Portal API enforces per-account rate limits to keep latency stable for everyone. Limits apply to the API key's account, not to individual keys.
+
+## Default limits
+
+| Endpoint group | Limit |
+| --- | --- |
+| Read endpoints (`GET`) | 600 requests / minute |
+| Write endpoints (`POST`, `PATCH`) | 120 requests / minute |
+| Report downloads (`GET /v1/reports/{id}/download`) | 60 requests / minute |
+
+Sandbox limits are roughly 50% of production.
+
+## Headers
+
+Every response — successful or not — includes:
+
+```http
+X-RateLimit-Limit: 600
+X-RateLimit-Remaining: 487
+X-RateLimit-Reset: 1714828800
+```
+
+`X-RateLimit-Reset` is a Unix timestamp in seconds. Use it to schedule the next batch of work rather than guessing.
+
+## Throttled response
+
+When you exceed the limit, you get a `429`:
+
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 4
+```
+
+```json
+{
+  "error": {
+    "type": "rate_limited",
+    "code": "too_many_requests",
+    "message": "Rate limit exceeded for this account.",
+    "request_id": "req_01HZ8R2W6F4P8Q"
+  }
+}
+```
+
+`Retry-After` is the floor in seconds before the next request will succeed. Always honor it.
+
+## Backoff strategy
+
+```ts
+async function call(fn: () => Promise<Response>, attempt = 0): Promise<Response> {
+  const res = await fn();
+  if (res.status !== 429) return res;
+
+  const retryAfter = Number(res.headers.get("Retry-After") ?? 1);
+  const jitter = Math.random() * 250;
+  await sleep(retryAfter * 1000 + jitter);
+
+  if (attempt >= 5) throw new Error("Rate limit retries exhausted");
+  return call(fn, attempt + 1);
+}
+```
+
+## Bursting
+
+Limits are leaky-bucket. Short bursts above the per-minute average are tolerated as long as the rolling average stays under the limit. In practice you can send up to 2x the steady-state limit for a few seconds.
+
+## Concurrency
+
+There's no separate concurrency limit, but very high parallelism amplifies the chance of `429`s. For bulk jobs:
+
+- Cap concurrency at 10-20 in flight.
+- Use a token-bucket library (e.g. `bottleneck`, `aiolimiter`) tuned to ~80% of the published limit.
+- Always set `Idempotency-Key` on writes so retries after a `429` don't duplicate.
+
+## When to ask for more
+
+If your steady-state usage is above 80% of any limit, contact [support](mailto:portal-api@vibrant-wellness.example.com) with your account ID and a description of the workload. Higher limits are available for production integrations.

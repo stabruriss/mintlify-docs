@@ -1,55 +1,62 @@
-# Mintlify Starter Kit
+# Vibrant Wellness Portal API — Documentation
 
-Use the starter kit to get your docs deployed and ready to customize.
+This repository hosts the developer documentation for the Vibrant Wellness Portal API. It is built with [Mintlify](https://mintlify.com).
 
-Click the green **Use this template** button at the top of this repo to copy the Mintlify starter kit. The starter kit contains examples with
+## Structure
 
-- Guide pages
-- Navigation
-- Customizations
-- API reference pages
-- Use of popular components
+```
+.
+├── docs.json                      # Site config: navigation, theme, branding
+├── index.mdx                      # Landing page
+├── quickstart.mdx                 # Five-minute setup
+├── authentication.mdx             # Bearer auth, scopes, rotation
+├── api-keys.mdx                   # API key portal walk-through
+├── concepts/                      # Domain explainers
+├── guides/                        # End-to-end workflows
+├── platform/                      # Cross-cutting concerns (errors, pagination, webhooks…)
+├── coming-soon/                   # Reference shapes for unreleased endpoints
+└── api-reference/
+    ├── introduction.mdx
+    ├── openapi.json               # Full OpenAPI 3.1 spec
+    ├── orders/                    # Endpoint MDX bound to OpenAPI paths
+    ├── tracking/
+    ├── reports/
+    ├── tests/
+    └── webhooks/
+```
 
-**[Follow the full quickstart guide](https://starter.mintlify.com/quickstart)**
+## Local preview
 
-## AI-assisted writing
-
-Set up your AI coding tool to work with Mintlify:
+Install the Mintlify CLI and start the dev server:
 
 ```bash
-npx skills add https://mintlify.com/docs
-```
-
-This command installs Mintlify's documentation skill for your configured AI tools like Claude Code, Cursor, Windsurf, and others. The skill includes component reference, writing standards, and workflow guidance.
-
-See the [AI tools guides](/ai-tools) for tool-specific setup.
-
-## Development
-
-Install the [Mintlify CLI](https://www.npmjs.com/package/mint) to preview your documentation changes locally. To install, use the following command:
-
-```
 npm i -g mint
-```
-
-Run the following command at the root of your documentation, where your `docs.json` is located:
-
-```
 mint dev
 ```
 
-View your local preview at `http://localhost:3000`.
+View the site at `http://localhost:3000`.
 
-## Publishing changes
+## Editing endpoints
 
-Install our GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app) to propagate changes from your repo to your deployment. Changes are deployed to production automatically after pushing to the default branch.
+Endpoint pages under `api-reference/` are thin MDX files whose frontmatter binds to an OpenAPI operation:
 
-## Need help?
+```mdx
+---
+title: "Create an order"
+openapi: "POST /v1/orders"
+---
+```
 
-### Troubleshooting
+The full request/response shape, parameters, and try-it widget come from `api-reference/openapi.json`. To add or change an endpoint:
 
-- If your dev environment isn't running: Run `mint update` to ensure you have the most recent version of the CLI.
-- If a page loads as a 404: Make sure you are running in a folder with a valid `docs.json`.
+1. Edit `api-reference/openapi.json`.
+2. Add a matching MDX stub under the appropriate folder.
+3. Add the page to the relevant group in `docs.json`.
 
-### Resources
-- [Mintlify documentation](https://mintlify.com/docs)
+## Publishing
+
+The Mintlify GitHub app deploys changes to the default branch automatically. See the dashboard at https://dashboard.mintlify.com.
+
+## Status
+
+This site is the **demo/requirements reference** version. The actual backend is in active development; treat URLs and IDs as illustrative.

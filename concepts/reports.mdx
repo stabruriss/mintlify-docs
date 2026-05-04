@@ -1,0 +1,104 @@
+---
+title: "Reports"
+description: "Reports carry the structured biomarker results once a sample has been processed."
+icon: "chart-line"
+---
+
+A **report** is the output of running a single test panel against a sample. Orders with multiple panels produce one report per panel; the full set is available via `GET /v1/orders/{id}/reports`.
+
+## Anatomy
+
+```json
+{
+  "id": "rpt_01HZ7P5XQK4F8T",
+  "order_id": "ord_01HZ7M3K2N8R9Q",
+  "test_code": "MICRONUTRIENTS",
+  "status": "released",
+  "released_at": "2026-05-12T18:04:00Z",
+  "summary": "Vitamin D borderline low. All other markers within range.",
+  "biomarkers": [
+    {
+      "code": "VITD-25-OH",
+      "name": "25-Hydroxy Vitamin D",
+      "value": 28.4,
+      "unit": "ng/mL",
+      "reference_range": { "low": 30, "high": 100 },
+      "interpretation": "borderline"
+    }
+  ]
+}
+```
+
+## Status values
+
+<CardGroup cols={2}>
+  <Card title="draft" icon="pencil">
+    Lab has finalized values but a clinical reviewer has not yet released the report. Not visible to patients.
+  </Card>
+  <Card title="released" icon="check">
+    Report is final and visible to the ordering provider and (per consent) the patient.
+  </Card>
+  <Card title="amended" icon="rotate">
+    A previously released report has been corrected. The `id` is unchanged; query the report again to get the new values.
+  </Card>
+  <Card title="withdrawn" icon="ban">
+    The lab has invalidated the report. Treat it as deleted; do not display values.
+  </Card>
+</CardGroup>
+
+## Biomarker shape
+
+Every numeric result follows the same shape:
+
+<ResponseField name="code" type="string">
+  Stable Vibrant biomarker code, e.g. `VITD-25-OH`. Use this for programmatic lookups; `name` may be localized in the future.
+</ResponseField>
+
+<ResponseField name="value" type="number | string">
+  Numeric measurement, or a qualitative result like `"detected"` / `"not_detected"`.
+</ResponseField>
+
+<ResponseField name="unit" type="string">
+  Units for numeric values. Absent for qualitative biomarkers.
+</ResponseField>
+
+<ResponseField name="reference_range" type="object">
+  `low` and `high` bounds for the patient's age/sex cohort. Either may be `null` for one-sided ranges (e.g. "must be below 5").
+</ResponseField>
+
+<ResponseField name="interpretation" type="enum">
+  Vibrant's coarse-grained classification: `normal`, `borderline`, `out_of_range`, or `critical`. Use this when you need a quick visual flag without computing the math yourself.
+</ResponseField>
+
+## PDF vs JSON
+
+Both representations are first-class. Pick what fits your UI:
+
+| Format | Endpoint | Use it for |
+| --- | --- | --- |
+| PDF | `GET /v1/reports/{id}/download?format=pdf` | Rendering inside an EHR, emailing, archival. |
+| JSON | `GET /v1/reports/{id}` (or `/download?format=json`) | Charting, alerting, structured storage, AI summarization. |
+
+PDFs are generated lazily and cached. The download endpoint returns a signed URL valid for 5 minutes.
+
+## Amendments
+
+When a report is amended:
+
+1. The `status` flips from `released` to `amended`.
+2. A `report.ready` webhook fires with the new payload.
+3. The `id` does not change — your foreign key remains valid.
+4. The previous values are accessible via the audit endpoint (coming soon).
+
+Always re-fetch on `report.ready` rather than trusting cached values.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Read a report" icon="file-lines" href="/guides/read-reports">
+    Step-by-step retrieval and rendering.
+  </Card>
+  <Card title="report.ready webhook" icon="bell" href="/api-reference/webhooks/report-ready">
+    Skip polling — react when the lab releases.
+  </Card>
+</CardGroup>

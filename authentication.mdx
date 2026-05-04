@@ -1,0 +1,85 @@
+---
+title: "Authentication"
+description: "All Portal API requests are authenticated with a bearer API key."
+icon: "key"
+---
+
+The Portal API uses bearer authentication. Every request must include an `Authorization` header:
+
+```http
+Authorization: Bearer sk_live_01HZ7M3K2N8R9Q...
+```
+
+Requests without a valid key receive a `401 authentication_error`.
+
+## Key types
+
+<CardGroup cols={2}>
+  <Card title="Sandbox keys" icon="flask">
+    Prefix `sk_sandbox_`. Bound to the sandbox environment. Orders never ship physical kits and never bill a real card. Ideal for development and CI.
+  </Card>
+  <Card title="Live keys" icon="bolt">
+    Prefix `sk_live_`. Bound to production. Real orders, real kits, real charges. Restrict to deploy environments only.
+  </Card>
+</CardGroup>
+
+A single account can have many keys; revoking one does not affect the others.
+
+## Environments
+
+| Environment | Base URL | Key prefix |
+| --- | --- | --- |
+| Production | `https://api.vibrant-wellness.example.com` | `sk_live_` |
+| Sandbox | `https://api.sandbox.vibrant-wellness.example.com` | `sk_sandbox_` |
+
+Sandbox is a full-fidelity mirror of production: same endpoints, same response shapes, and a deterministic state machine that advances orders through their lifecycle on an accelerated clock.
+
+## Scopes
+
+Keys are issued with one of three scopes. Pick the narrowest scope that works.
+
+<AccordionGroup>
+  <Accordion title="read_only" icon="eye">
+    Can call all `GET` endpoints. Cannot create, update, or cancel anything. Use for analytics dashboards and reporting jobs.
+  </Accordion>
+  <Accordion title="orders_write" icon="pen">
+    Can read everything plus create, update, and cancel orders. Cannot manage providers, payment methods, or webhooks. This is the default for ordering integrations.
+  </Accordion>
+  <Accordion title="full_access" icon="lock-open">
+    All of the above plus account-level configuration (webhooks, providers, payment methods when those endpoints ship). Reserve for backend admin tools.
+  </Accordion>
+</AccordionGroup>
+
+## Rotation
+
+API keys do not expire automatically. We recommend a 90-day rotation cadence.
+
+<Steps>
+  <Step title="Create a new key">
+    Issue the new key in the portal with the same scope as the old one.
+  </Step>
+  <Step title="Roll deployments">
+    Deploy with the new key. The old key continues to work until you revoke it — both can be active simultaneously.
+  </Step>
+  <Step title="Revoke the old key">
+    Once metrics show no traffic on the old key, revoke it from **Settings → API keys**. Revocation takes effect within 60 seconds.
+  </Step>
+</Steps>
+
+## Storage
+
+<Warning>
+  Never commit keys to source control or embed them in client-side code. The Portal API has no public client; all calls must originate from your backend.
+</Warning>
+
+Recommended storage:
+
+- A secret manager (AWS Secrets Manager, GCP Secret Manager, HashiCorp Vault, Doppler).
+- Per-environment env vars injected at deploy time.
+- A short-lived value cached in memory — never on disk.
+
+If a key is exposed, revoke it immediately and audit the [request log](https://portal.vibrant-wellness.example.com/settings/audit) for unfamiliar IPs.
+
+## What gets logged
+
+Every request includes a `request_id` in both the response body (on errors) and the `X-Request-Id` response header. Include it when contacting support.

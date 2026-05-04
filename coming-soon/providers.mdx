@@ -1,0 +1,76 @@
+---
+title: "Providers (coming soon)"
+description: "API-driven onboarding for ordering clinicians. Shape preview — not yet exposed."
+icon: "user-doctor"
+---
+
+<Note>
+  These endpoints are in design. Provider onboarding is currently handled by Vibrant's success team during account setup. The shapes below are reference contracts and may change before launch.
+</Note>
+
+Today, providers (`provider_id` values) are provisioned by Vibrant's onboarding team and shared with you out of band. The upcoming Providers API will let your account admins create, update, and revoke providers programmatically — useful for clinics with high turnover or for SaaS partners shipping multi-tenant integrations.
+
+## Why this matters
+
+<CardGroup cols={2}>
+  <Card title="Self-serve onboarding" icon="user-plus">
+    Spin up new clinicians in seconds during your own onboarding flow.
+  </Card>
+  <Card title="License attestation" icon="id-card">
+    Capture NPI, state license numbers, and DEA numbers structurally.
+  </Card>
+  <Card title="Multi-tenant SaaS" icon="building">
+    Map your tenants to Vibrant providers without filing tickets.
+  </Card>
+  <Card title="Audit & revocation" icon="shield">
+    Disable a provider the moment they leave the practice.
+  </Card>
+</CardGroup>
+
+## Planned endpoints
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/v1/providers` | Create a provider. |
+| `GET` | `/v1/providers` | List providers. |
+| `GET` | `/v1/providers/{provider_id}` | Retrieve. |
+| `PATCH` | `/v1/providers/{provider_id}` | Update mutable fields. |
+| `POST` | `/v1/providers/{provider_id}/deactivate` | Deactivate. |
+
+## Shape preview
+
+```json
+{
+  "id": "prv_01HZ7M3K2N8R9Q",
+  "status": "active",
+  "first_name": "Jordan",
+  "last_name": "Patel",
+  "credentials": "MD",
+  "email": "jordan.patel@example-clinic.com",
+  "npi": "1234567893",
+  "licenses": [
+    {
+      "state": "CA",
+      "license_number": "A12345",
+      "expires_on": "2027-06-30"
+    }
+  ],
+  "default_clinic_address": {
+    "line1": "500 Clinic Way",
+    "city": "Oakland",
+    "state": "CA",
+    "postal_code": "94612",
+    "country": "US"
+  },
+  "metadata": {},
+  "created_at": "2026-04-12T10:00:00Z"
+}
+```
+
+## Validation expectations
+
+- `npi` must be a valid 10-digit National Provider Identifier (Luhn-checked).
+- Each `licenses[].state` must match an active license in the relevant state board's registry.
+- `email` must match the domain on file for the practice (configurable).
+
+Failed validations will return `validation_error` with `param` pointing to the offending field.

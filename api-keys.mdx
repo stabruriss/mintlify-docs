@@ -1,0 +1,126 @@
+---
+title: "API key demo"
+description: "How to generate, scope, and rotate Portal API keys, with a walk-through of the portal UI."
+icon: "id-badge"
+---
+
+This page walks through creating an API key in the Vibrant Wellness portal. The screenshots are illustrative — the real portal lives at [portal.vibrant-wellness.example.com](https://portal.vibrant-wellness.example.com/settings/api-keys).
+
+## Generate a key
+
+<Steps>
+  <Step title="Open the API keys settings page">
+    Sign in to the portal as a member with the **Developer** or **Admin** role. Navigate to **Settings → API keys**.
+
+    <Frame caption="API keys settings page">
+      <img src="/images/checks-passed.png" alt="API keys settings page in the Vibrant Wellness portal" />
+    </Frame>
+  </Step>
+
+  <Step title="Click 'Create key'">
+    A drawer opens prompting for:
+
+    <ResponseField name="Name" type="string" required>
+      Human-readable label, e.g. `local-dev`, `prod-orders-service`. Visible only inside the portal.
+    </ResponseField>
+
+    <ResponseField name="Environment" type="enum" required>
+      Either `sandbox` or `live`. The environment is baked into the key prefix and cannot be changed later.
+    </ResponseField>
+
+    <ResponseField name="Scope" type="enum" required>
+      One of `read_only`, `orders_write`, or `full_access`. See [Authentication → Scopes](/authentication#scopes).
+    </ResponseField>
+
+    <ResponseField name="Allowed IPs" type="string[]">
+      Optional CIDR list. If set, requests from any other source IP receive a `401`. Leave empty for portable dev keys.
+    </ResponseField>
+  </Step>
+
+  <Step title="Copy the key">
+    The full key is displayed exactly **once**. Copy it into your secret manager before closing the drawer.
+
+    <Warning>
+      If you lose the key, you must create a new one. Vibrant cannot retrieve the secret value.
+    </Warning>
+  </Step>
+
+  <Step title="Use it in your code">
+    <CodeGroup>
+      ```bash cURL
+      curl https://api.sandbox.vibrant-wellness.example.com/v1/tests \
+        -H "Authorization: Bearer sk_sandbox_..."
+      ```
+
+      ```ts TypeScript
+      const client = {
+        baseUrl: "https://api.sandbox.vibrant-wellness.example.com",
+        key: process.env.VW_API_KEY!,
+      };
+
+      const res = await fetch(`${client.baseUrl}/v1/tests`, {
+        headers: { Authorization: `Bearer ${client.key}` },
+      });
+      ```
+
+      ```python Python
+      import os, requests
+
+      r = requests.get(
+          "https://api.sandbox.vibrant-wellness.example.com/v1/tests",
+          headers={"Authorization": f"Bearer {os.environ['VW_API_KEY']}"},
+      )
+      ```
+    </CodeGroup>
+  </Step>
+</Steps>
+
+## Scopes at a glance
+
+| Scope | Read orders/reports | Create/update orders | Manage account config |
+| --- | :---: | :---: | :---: |
+| `read_only` | Yes | No | No |
+| `orders_write` | Yes | Yes | No |
+| `full_access` | Yes | Yes | Yes |
+
+## Best practices
+
+<CardGroup cols={2}>
+  <Card title="One key per service" icon="server">
+    Don't share keys across services. Per-service keys make audit logs and revocation surgical.
+  </Card>
+  <Card title="Rotate quarterly" icon="rotate">
+    Set a calendar reminder. The portal shows a `last_used_at` timestamp that helps you spot dead keys.
+  </Card>
+  <Card title="Restrict by IP" icon="shield">
+    Production keys should be locked to your backend NAT ranges. Sandbox keys can be left open for developer laptops.
+  </Card>
+  <Card title="Alert on 401 spikes" icon="bell">
+    A sudden cluster of `authentication_error` responses usually means a key was revoked or rotated incorrectly.
+  </Card>
+</CardGroup>
+
+## Revoke a key
+
+<Steps>
+  <Step title="Find the key in the portal">
+    Each row shows the key name, prefix, scope, and last-used timestamp.
+  </Step>
+  <Step title="Click 'Revoke'">
+    Confirm the action. Revocation propagates within 60 seconds. In-flight requests using the key complete normally; new requests receive `401`.
+  </Step>
+  <Step title="Verify">
+    Hit any endpoint with the revoked key — you should get:
+
+    ```json
+    {
+      "error": {
+        "type": "authentication_error",
+        "code": "key_revoked",
+        "message": "API key has been revoked.",
+        "request_id": "req_01HZ8R2W6F4P8Q"
+      }
+    }
+    ```
+  </Step>
+</Steps>

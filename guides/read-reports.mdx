@@ -1,0 +1,151 @@
+---
+title: "Read a report"
+description: "Pull structured biomarker results, render them in your UI, or hand them to a clinician."
+icon: "file-lines"
+---
+
+Once an order completes, one or more reports become available. This guide covers the typical retrieval and rendering flow.
+
+## Wait for the right signal
+
+Don't poll for reports — listen for `report.ready`:
+
+```ts
+app.post("/webhooks/vw", async (req, res) => {
+  const event = await parseAndVerify(req);
+
+  if (event.type === "report.ready") {
+    await ingestReport(event.data.report);
+  }
+
+  res.sendStatus(200);
+});
+```
+
+If you must poll (e.g. reconciliation jobs), use `GET /v1/orders/{id}/reports` rather than `GET /v1/reports` — it scopes the query and skips reports for orders you've already processed.
+
+## Fetch the structured report
+
+```bash
+curl "$VW_API_BASE/v1/reports/rpt_01HZ7P5XQK4F8T" \
+  -H "Authorization: Bearer $VW_API_KEY"
+```
+
+```json
+{
+  "id": "rpt_01HZ7P5XQK4F8T",
+  "order_id": "ord_01HZ7M3K2N8R9Q",
+  "test_code": "MICRONUTRIENTS",
+  "status": "released",
+  "released_at": "2026-05-12T18:04:00Z",
+  "summary": "Vitamin D borderline low. All other markers within range.",
+  "biomarkers": [
+    {
+      "code": "VITD-25-OH",
+      "name": "25-Hydroxy Vitamin D",
+      "value": 28.4,
+      "unit": "ng/mL",
+      "reference_range": { "low": 30, "high": 100 },
+      "interpretation": "borderline"
+    },
+    {
+      "code": "B12",
+      "name": "Vitamin B12",
+      "value": 612,
+      "unit": "pg/mL",
+      "reference_range": { "low": 200, "high": 900 },
+      "interpretation": "normal"
+    }
+  ]
+}
+```
+
+## Render it
+
+A simple React rendering of the biomarker grid:
+
+```tsx
+import clsx from "clsx";
+
+const FLAG_STYLE = {
+  normal: "text-emerald-700 bg-emerald-50",
+  borderline: "text-amber-700 bg-amber-50",
+  out_of_range: "text-red-700 bg-red-50",
+  critical: "text-white bg-red-600",
+};
+
+export function BiomarkerTable({ biomarkers }) {
+  return (
+    <table>
+      <thead>
+        <tr>
+          <th>Marker</th><th>Value</th><th>Range</th><th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {biomarkers.map((b) => (
+          <tr key={b.code}>
+            <td>{b.name}</td>
+            <td>{b.value} {b.unit}</td>
+            <td>
+              {b.reference_range.low ?? "—"} – {b.reference_range.high ?? "—"}
+            </td>
+            <td>
+              <span className={clsx("badge", FLAG_STYLE[b.interpretation])}>
+                {b.interpretation}
+              </span>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+```
+
+## Get the PDF
+
+For provider-facing rendering or archival, request the PDF download URL:
+
+```bash
+curl "$VW_API_BASE/v1/reports/rpt_01HZ7P5XQK4F8T/download?format=pdf" \
+  -H "Authorization: Bearer $VW_API_KEY"
+```
+
+```json
+{
+  "url": "https://reports.vibrant-wellness.example.com/signed/rpt_01HZ7P5XQK4F8T-...",
+  "expires_at": "2026-05-12T18:09:00Z",
+  "format": "pdf"
+}
+```
+
+The URL is single-use within a 5-minute window. Don't proxy it through your servers; redirect or stream directly to the client to avoid unnecessary bandwidth.
+
+```ts
+app.get("/orders/:id/report.pdf", async (req, res) => {
+  const { url } = await getDownloadUrl(req.params.id);
+  res.redirect(302, url);
+});
+```
+
+## Multi-panel orders
+
+When an order has multiple panels, expect multiple reports — one per panel — released independently as the lab finishes each one. Use the order-scoped endpoint:
+
+```bash
+curl "$VW_API_BASE/v1/orders/ord_01HZ7M3K2N8R9Q/reports" \
+  -H "Authorization: Bearer $VW_API_KEY"
+```
+
+UI tip: render an "in progress" placeholder for any panel from `order.tests` whose `test_code` doesn't yet appear in the reports list.
+
+## Amendments
+
+If a report is amended, a fresh `report.ready` webhook fires and `status` flips to `amended`. The `id` is unchanged, so your foreign key keeps working. Always re-fetch on the webhook rather than trusting a cached payload.
+
+## What to never do
+
+<Warning>
+  Don't surface raw biomarker values without the matching reference range and `interpretation`. The same number is "normal" for one cohort and "critical" for another; stripping context creates clinical risk.
+</Warning>

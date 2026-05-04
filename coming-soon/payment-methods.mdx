@@ -1,0 +1,88 @@
+---
+title: "Payment methods (coming soon)"
+description: "Store cards on file and choose between account billing, patient billing, and insurance. Shape preview — not yet exposed."
+icon: "credit-card"
+---
+
+<Note>
+  These endpoints are in design. Today, all sandbox orders are free and live orders bill to your account on a monthly invoice. The shapes below are reference contracts and may change before launch.
+</Note>
+
+The Payment Methods API will let you tokenize cards and bank accounts for both your account itself and for individual patients. Once available, the `billing.payer` field on orders becomes meaningful — you can split charges between the account, the patient, or insurance.
+
+## Why this matters
+
+<CardGroup cols={2}>
+  <Card title="Patient-pay flows" icon="credit-card">
+    Charge patients at order time without taking PCI scope yourself.
+  </Card>
+  <Card title="Multiple cards on file" icon="layer-group">
+    HSA + personal card; default per-patient.
+  </Card>
+  <Card title="Insurance routing" icon="shield-halved">
+    Submit eligible orders to insurance and bill the residual to the patient.
+  </Card>
+  <Card title="Refund support" icon="rotate-left">
+    First-class refund endpoints with reasons and audit trail.
+  </Card>
+</CardGroup>
+
+## Planned endpoints
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/v1/payment-methods` | Tokenize and attach a card or bank account. |
+| `GET` | `/v1/payment-methods` | List methods on file. |
+| `GET` | `/v1/payment-methods/{id}` | Retrieve. |
+| `DELETE` | `/v1/payment-methods/{id}` | Detach. |
+| `POST` | `/v1/payment-methods/{id}/set-default` | Make default for the owning patient or account. |
+| `GET` | `/v1/orders/{order_id}/charges` | List charges. |
+| `POST` | `/v1/charges/{charge_id}/refund` | Refund a charge. |
+
+## Tokenization model
+
+Vibrant will integrate with Stripe Elements / Stripe.js for tokenization. Your frontend never sends raw card numbers to Vibrant; you collect a Stripe `payment_method` token and POST it to `/v1/payment-methods`:
+
+```json
+{
+  "owner": { "type": "patient", "patient_id": "pat_01HZ7M3K2N8R9Q" },
+  "stripe_payment_method": "pm_1NXyZ...",
+  "set_as_default": true
+}
+```
+
+This keeps you out of PCI scope: only Stripe sees the PAN, and Vibrant only stores the token.
+
+## Shape preview
+
+```json
+{
+  "id": "pm_01HZ7M3K2N8R9Q",
+  "owner": { "type": "patient", "patient_id": "pat_01HZ7M3K2N8R9Q" },
+  "type": "card",
+  "card": {
+    "brand": "visa",
+    "last4": "4242",
+    "exp_month": 12,
+    "exp_year": 2029
+  },
+  "billing_address": { "..." },
+  "is_default": true,
+  "created_at": "2026-04-12T10:00:00Z"
+}
+```
+
+## Order integration
+
+Once available, orders will accept a `payment_method_id` directly:
+
+```json
+{
+  "billing": {
+    "payer": "patient",
+    "payment_method_id": "pm_01HZ7M3K2N8R9Q"
+  }
+}
+```
+
+The card is authorized at order creation and captured when the lab marks the order `sample_received`. If the order is `cancelled` or `rejected`, the authorization is voided.

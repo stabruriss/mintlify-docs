@@ -1,0 +1,109 @@
+---
+title: "Webhooks"
+description: "Subscribe to events and skip polling. Vibrant signs every payload."
+icon: "bell"
+---
+
+Webhooks push state changes to your backend the moment they happen. They're the recommended way to keep an integration in sync.
+
+## Events available today
+
+<CardGroup cols={2}>
+  <Card title="order.status_changed" icon="route" href="/api-reference/webhooks/order-status-changed">
+    Sent on every order lifecycle transition.
+  </Card>
+  <Card title="report.ready" icon="file-lines" href="/api-reference/webhooks/report-ready">
+    Sent when a report is released or amended.
+  </Card>
+</CardGroup>
+
+## Configure an endpoint
+
+In the portal, go to **Settings → Webhooks** and add:
+
+- **URL** — must be HTTPS, must respond within 5 seconds with a 2xx status.
+- **Events** — pick which event types to receive. You can subscribe to all or to specific ones.
+- **Description** — internal note for your team.
+
+A signing secret is generated and shown once. Copy it into your secret manager.
+
+## Verify the signature
+
+Vibrant signs every payload with HMAC-SHA256 over the raw request body. The signature is in the `X-Vibrant-Signature` header in the format `t=<timestamp>,v1=<hex>`.
+
+```ts
+import { createHmac, timingSafeEqual } from "node:crypto";
+
+function verify(body: string, header: string, secret: string) {
+  const parts = Object.fromEntries(
+    header.split(",").map((p) => p.split("=")),
+  );
+  const signed = `${parts.t}.${body}`;
+  const expected = createHmac("sha256", secret).update(signed).digest("hex");
+  if (!timingSafeEqual(Buffer.from(expected), Buffer.from(parts.v1))) {
+    throw new Error("invalid signature");
+  }
+  if (Date.now() / 1000 - Number(parts.t) > 300) {
+    throw new Error("stale request");
+  }
+}
+```
+
+The `t` (timestamp) defends against replay attacks. Reject anything older than 5 minutes.
+
+## Acknowledge fast
+
+Vibrant retries failed deliveries (4xx or no response) with exponential backoff for up to 24 hours. To avoid retries:
+
+1. Verify the signature.
+2. Persist the event ID for deduplication.
+3. Enqueue the work to a background job.
+4. Return `200`.
+
+Don't process the event synchronously — that risks timeouts and triggers retries.
+
+```ts
+app.post("/webhooks/vw", async (req, res) => {
+  const raw = req.rawBody.toString();
+  verify(raw, req.headers["x-vibrant-signature"], process.env.VW_WEBHOOK_SECRET!);
+
+  const event = JSON.parse(raw);
+
+  await events.upsert({ id: event.id, payload: event });
+  await jobs.enqueue("process_vw_event", { eventId: event.id });
+
+  res.sendStatus(200);
+});
+```
+
+## Idempotency
+
+Vibrant guarantees at-least-once delivery. Your handler must be idempotent. Use the event `id` (e.g. `evt_01HZ8R2W6F4P8Q`) as the dedupe key. Most events are also safe to apply twice because they replace state rather than incrementing it.
+
+## Replay & backfill
+
+Need to replay a missed event? In the portal, open the event in the webhook log and click **Resend**. For programmatic backfill, the order events endpoint (`GET /v1/orders/{id}/events`) is the source of truth.
+
+## Local development
+
+Webhooks need a public URL. For development:
+
+- [ngrok](https://ngrok.com) or [Cloudflare Tunnel](https://www.cloudflare.com/products/tunnel/) gives your laptop a public HTTPS URL.
+- The portal lets you point sandbox webhooks at the tunnel URL.
+- Sandbox events are emitted on the same accelerated clock used for sandbox orders, so a full lifecycle takes about 10 minutes.
+
+## Event envelope
+
+```json
+{
+  "id": "evt_01HZ8R2W6F4P8Q",
+  "type": "order.status_changed",
+  "created_at": "2026-05-05T09:10:42Z",
+  "data": {
+    "order": { "id": "ord_01HZ7M3K2N8R9Q", "..." },
+    "previous_status": "created"
+  }
+}
+```
+
+`type` is the routing key. Ignore unknown types — Vibrant will add new ones over time.

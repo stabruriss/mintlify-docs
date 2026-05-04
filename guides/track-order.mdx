@@ -1,0 +1,125 @@
+---
+title: "Track an order"
+description: "Two ways to follow an order: poll the tracking endpoint or subscribe to webhooks."
+icon: "route"
+---
+
+After an order is created, you have two options for keeping its state in sync with your application.
+
+<CardGroup cols={2}>
+  <Card title="Poll" icon="arrows-rotate">
+    Cheap and simple. Best for dashboards and low-volume integrations.
+  </Card>
+  <Card title="Webhooks" icon="bell">
+    Push-based. Best for production. Skip wasted polls and react in real time.
+  </Card>
+</CardGroup>
+
+Most production integrations do both: webhooks for immediate state, periodic polling as a safety net.
+
+## The tracking endpoint
+
+`GET /v1/orders/{order_id}/tracking` returns the latest summary:
+
+```bash
+curl "$VW_API_BASE/v1/orders/ord_01HZ7M3K2N8R9Q/tracking" \
+  -H "Authorization: Bearer $VW_API_KEY"
+```
+
+```json
+{
+  "order_id": "ord_01HZ7M3K2N8R9Q",
+  "status": "kit_shipped",
+  "shipment": {
+    "carrier": "UPS",
+    "tracking_number": "1Z999AA10123456784",
+    "tracking_url": "https://www.ups.com/track?tracknum=1Z999AA10123456784",
+    "estimated_delivery": "2026-05-07"
+  },
+  "lab": null,
+  "updated_at": "2026-05-05T09:10:42Z"
+}
+```
+
+`shipment` is populated as soon as the carrier accepts the kit. `lab` is populated when the sample is received and updated again with `expected_completion` once accessioning finishes.
+
+## Polling cadence
+
+| Order status | Suggested poll interval |
+| --- | --- |
+| `created` | 30 minutes |
+| `kit_shipped` | 6 hours |
+| `sample_received`, `in_progress` | 30 minutes |
+| `completed`, `cancelled`, `rejected` | Stop polling |
+
+Always cap at one request per order per minute to avoid rate limits.
+
+## The events endpoint
+
+For UI timelines, list every transition with `GET /v1/orders/{order_id}/events`:
+
+```json
+{
+  "data": [
+    {
+      "id": "evt_01HZ8R2W6F4P8Q",
+      "type": "order.created",
+      "occurred_at": "2026-05-04T14:22:11Z"
+    },
+    {
+      "id": "evt_01HZ8R2W6F4P8R",
+      "type": "order.kit_shipped",
+      "occurred_at": "2026-05-05T09:10:42Z",
+      "data": {
+        "carrier": "UPS",
+        "tracking_number": "1Z999AA10123456784"
+      }
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
+```
+
+Render this as a vertical timeline. Each event is immutable; new events append to the end.
+
+## Webhooks
+
+The `order.status_changed` event fires within five seconds of every transition. Configure an endpoint in **Settings → Webhooks** and verify the signature:
+
+```ts
+import { createHmac, timingSafeEqual } from "node:crypto";
+
+function verify(payload: string, signature: string, secret: string) {
+  const expected = createHmac("sha256", secret).update(payload).digest("hex");
+  return timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+}
+```
+
+See [Webhooks](/platform/webhooks) for the full handshake.
+
+## Reconciliation job
+
+Webhooks can fail. Run a daily job that:
+
+1. Lists orders with `status` in (`created`, `kit_shipped`, `sample_received`, `in_progress`) older than 7 days.
+2. Fetches each one's tracking endpoint.
+3. Replays any missing transitions through your normal handler.
+
+```ts
+const stale = await listOrders({
+  status: "in_progress",
+  created_before: subDays(new Date(), 7),
+});
+
+for (const order of stale.data) {
+  const tracking = await getTracking(order.id);
+  if (tracking.status !== order.cachedStatus) {
+    await applyTransition(order.id, tracking.status);
+  }
+}
+```
+
+## Sandbox tip
+
+Sandbox orders auto-advance through the full lifecycle in roughly 10 minutes regardless of method. Don't tune your polling against that — production cadence is on the order of days.

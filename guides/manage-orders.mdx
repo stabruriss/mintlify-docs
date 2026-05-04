@@ -1,0 +1,132 @@
+---
+title: "Manage orders"
+description: "List, search, update, and cancel orders after they've been placed."
+icon: "list-check"
+---
+
+Once orders are flowing, your application needs to query them, fix mistakes before the lab receives the sample, and cancel when plans change. This guide covers the three operations you'll do most often.
+
+## List and search
+
+`GET /v1/orders` is paginated and filterable. Combine filters to drive provider dashboards, patient histories, or operational queues.
+
+```bash
+# All in-progress orders for a single provider
+curl "$VW_API_BASE/v1/orders?provider_id=prv_01HZ7M3K2N8R9Q&status=in_progress&limit=50" \
+  -H "Authorization: Bearer $VW_API_KEY"
+```
+
+| Filter | Effect |
+| --- | --- |
+| `status` | Single status value. To OR multiple, run multiple requests. |
+| `patient_id` | All orders for one patient (note: patient IDs come from the order resource today). |
+| `provider_id` | All orders placed by one clinician. |
+| `created_after` | ISO 8601. Useful for backfill jobs. |
+
+Pagination uses opaque cursors. See [Pagination](/platform/pagination).
+
+```ts
+async function* allOrders(filters: OrderFilters) {
+  let cursor: string | undefined;
+  do {
+    const page = await listOrders({ ...filters, cursor, limit: 100 });
+    yield* page.data;
+    cursor = page.has_more ? page.next_cursor! : undefined;
+  } while (cursor);
+}
+```
+
+## Update before the sample is received
+
+`PATCH /v1/orders/{order_id}` accepts a partial body. Only the fields you send are changed.
+
+```bash
+curl -X PATCH "$VW_API_BASE/v1/orders/ord_01HZ7M3K2N8R9Q" \
+  -H "Authorization: Bearer $VW_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "patient": {
+      "shipping_address": {
+        "line1": "100 Mission St",
+        "line2": "Floor 22",
+        "city": "San Francisco",
+        "state": "CA",
+        "postal_code": "94105",
+        "country": "US"
+      }
+    }
+  }'
+```
+
+Common scenarios:
+
+<CardGroup cols={2}>
+  <Card title="Wrong shipping address" icon="map-location-dot">
+    Allowed while `status` is `created`. Once `kit_shipped`, the package is in the carrier's hands — contact support to reroute.
+  </Card>
+  <Card title="Add or remove a panel" icon="vials">
+    Send a new `tests` array. Allowed before `sample_received`. The system reprices the order and updates `billing.amount_cents`.
+  </Card>
+  <Card title="Update contact info" icon="envelope">
+    `patient.email` and `patient.phone` are editable at any time, including after completion. Useful when patients move.
+  </Card>
+  <Card title="Annotate metadata" icon="tag">
+    `metadata` is fully editable forever. Use it to attach status from your own systems.
+  </Card>
+</CardGroup>
+
+<Warning>
+  PATCH is partial-merge for top-level keys but **replace** for `tests` and `metadata`. To add a single test to an existing order, fetch the order first, append to the array, then PATCH the full new array.
+</Warning>
+
+## Cancel
+
+Use `POST /v1/orders/{order_id}/cancel` rather than DELETE. Cancellation is a state transition, not a destruction — the order stays queryable and reports never appear.
+
+```bash
+curl -X POST "$VW_API_BASE/v1/orders/ord_01HZ7M3K2N8R9Q/cancel" \
+  -H "Authorization: Bearer $VW_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "reason": "patient_request",
+    "note": "Patient is travelling abroad for the next month."
+  }'
+```
+
+Allowed reasons: `patient_request`, `duplicate`, `ordered_in_error`, `other`.
+
+### When cancellation is rejected
+
+Once the lab has marked the sample `sample_received`, the order is locked. The endpoint returns:
+
+```json
+{
+  "error": {
+    "type": "conflict",
+    "code": "order_locked",
+    "message": "Order ord_01HZ7M3K2N8R9Q has been received by the lab and cannot be cancelled.",
+    "request_id": "req_01HZ8R2W6F4P8Q"
+  }
+}
+```
+
+If the patient never returns the kit, the order will eventually transition to `rejected` automatically — no action required.
+
+## Bulk operations
+
+There is no batch endpoint. For large jobs:
+
+1. Run requests in parallel with bounded concurrency (10-20 in flight is safe).
+2. Always set an `Idempotency-Key` so retries are safe.
+3. Capture `request_id` for each call into your job log; support uses it to investigate.
+
+```ts
+import pLimit from "p-limit";
+
+const limit = pLimit(10);
+await Promise.all(
+  visits.map((visit) =>
+    limit(() => createOrder(visit, { idempotencyKey: `visit-${visit.id}` })),
+  ),
+);
+```

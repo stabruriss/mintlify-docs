@@ -1,0 +1,113 @@
+---
+title: "Errors"
+description: "Every failure follows the same envelope. Match on type and code, not message."
+icon: "triangle-exclamation"
+---
+
+The Portal API uses standard HTTP status codes alongside a JSON envelope that gives you a stable, machine-friendly handle for each failure mode.
+
+## Envelope
+
+```json
+{
+  "error": {
+    "type": "validation_error",
+    "code": "test_not_available",
+    "message": "Test code GUT-ZOOMER-3.0 is not enabled for your account.",
+    "param": "/tests/0/test_code",
+    "request_id": "req_01HZ8R2W6F4P8Q"
+  }
+}
+```
+
+| Field | Description |
+| --- | --- |
+| `type` | High-level category. Use this for branching logic. |
+| `code` | Stable, narrow identifier. Use this for precise messaging. |
+| `message` | Human-readable description. May change over time — don't match on it. |
+| `param` | JSON pointer to the offending field, when applicable. |
+| `request_id` | Always present. Include it in support requests. |
+
+## Status codes
+
+| Status | `type` | When |
+| --- | --- | --- |
+| `400` | `invalid_request` | Body could not be parsed as JSON. |
+| `401` | `authentication_error` | Missing, malformed, or revoked API key. |
+| `403` | `permission_error` | Key lacks the required scope. |
+| `402` | `payment_required` | No active payment method on the account. |
+| `404` | `not_found` | Resource does not exist or is not visible to your account. |
+| `409` | `conflict` | Resource is in a state that does not allow this action (e.g. cancelling a received order). |
+| `422` | `validation_error` | One or more fields failed validation. `param` points to the first issue. |
+| `429` | `rate_limited` | Too many requests. See [Rate limits](/platform/rate-limits). |
+| `5xx` | `server_error` | Vibrant outage. Retry with backoff. |
+
+## Common error codes
+
+<AccordionGroup>
+  <Accordion title="invalid_request → malformed_json" icon="bug">
+    Request body wasn't valid JSON. Check `Content-Type: application/json` and your serializer.
+  </Accordion>
+  <Accordion title="authentication_error → key_revoked" icon="key">
+    The key was revoked. Issue a new one and roll your deployment.
+  </Accordion>
+  <Accordion title="permission_error → scope_insufficient" icon="lock">
+    A `read_only` key tried to write. Reissue the key with `orders_write`.
+  </Accordion>
+  <Accordion title="conflict → idempotency_key_reuse" icon="rotate">
+    The same `Idempotency-Key` was sent with a different body. Pick a new key or reuse the original payload.
+  </Accordion>
+  <Accordion title="conflict → order_locked" icon="lock-keyhole">
+    Tried to update or cancel an order whose sample was already received. The lab now controls the order.
+  </Accordion>
+  <Accordion title="validation_error → test_not_available" icon="ban">
+    The `test_code` isn't enabled for your account or isn't valid in the patient's state.
+  </Accordion>
+  <Accordion title="rate_limited → too_many_requests" icon="gauge-high">
+    Throttle and retry. The `Retry-After` header tells you when.
+  </Accordion>
+</AccordionGroup>
+
+## Retry policy
+
+| `type` | Retry? | How |
+| --- | --- | --- |
+| `invalid_request`, `permission_error`, `validation_error` | No | Fix the request. |
+| `authentication_error` | No | Replace the key. |
+| `not_found`, `conflict` | No | Inspect resource state and adjust. |
+| `payment_required` | No | Resolve billing first. |
+| `rate_limited` | Yes | Honor `Retry-After`. |
+| `server_error` | Yes | Exponential backoff up to 60s. Use `Idempotency-Key` so retries are safe. |
+
+## Reference example
+
+```ts
+async function placeOrder(payload, attempt = 0): Promise<Order> {
+  const res = await fetch(`${VW_API_BASE}/v1/orders`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${VW_API_KEY}`,
+      "Content-Type": "application/json",
+      "Idempotency-Key": payload.idempotency_key,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (res.ok) return res.json();
+
+  const { error } = await res.json();
+
+  if (error.type === "rate_limited" && attempt < 5) {
+    const wait = Number(res.headers.get("Retry-After") ?? 1) * 1000;
+    await sleep(wait);
+    return placeOrder(payload, attempt + 1);
+  }
+
+  if (error.type === "server_error" && attempt < 3) {
+    await sleep(2 ** attempt * 1000);
+    return placeOrder(payload, attempt + 1);
+  }
+
+  throw new VibrantError(error);
+}
+```

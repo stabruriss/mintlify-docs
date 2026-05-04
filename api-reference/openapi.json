@@ -1,16 +1,26 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "OpenAPI Plant Store",
-    "description": "A sample API that uses a plant store as an example to demonstrate features in the OpenAPI specification",
-    "license": {
-      "name": "MIT"
+    "title": "Vibrant Wellness Portal API",
+    "description": "REST API for the Vibrant Wellness Portal. Place lab test orders, track sample progress, retrieve reports, and (soon) manage patients, providers, and payment methods.",
+    "version": "2025-05-01",
+    "contact": {
+      "name": "Vibrant Wellness Developer Support",
+      "email": "portal-api@vibrant-wellness.example.com",
+      "url": "https://developers.vibrant-wellness.example.com"
     },
-    "version": "1.0.0"
+    "license": {
+      "name": "Proprietary"
+    }
   },
   "servers": [
     {
-      "url": "http://sandbox.mintlify.com"
+      "url": "https://api.vibrant-wellness.example.com",
+      "description": "Production"
+    },
+    {
+      "url": "https://api.sandbox.vibrant-wellness.example.com",
+      "description": "Sandbox"
     }
   ],
   "security": [
@@ -18,199 +28,1015 @@
       "bearerAuth": []
     }
   ],
+  "tags": [
+    {
+      "name": "Orders",
+      "description": "Place and manage lab test orders."
+    },
+    {
+      "name": "Tracking",
+      "description": "Follow an order from kit shipment to completed report."
+    },
+    {
+      "name": "Reports",
+      "description": "Retrieve test results once an order is complete."
+    },
+    {
+      "name": "Test catalog",
+      "description": "Browse the panels available to your account."
+    }
+  ],
   "paths": {
-    "/plants": {
+    "/v1/orders": {
+      "post": {
+        "tags": ["Orders"],
+        "summary": "Create an order",
+        "operationId": "createOrder",
+        "description": "Create a new lab test order. The order is placed in the `created` state and a kit is dispatched to the patient unless `sample_collection.method` is `in_clinic_draw`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderCreate"
+              },
+              "examples": {
+                "homeKit": {
+                  "summary": "Home collection kit",
+                  "value": {
+                    "patient": {
+                      "external_id": "pat_ext_8821",
+                      "first_name": "Avery",
+                      "last_name": "Nguyen",
+                      "date_of_birth": "1989-03-14",
+                      "sex": "female",
+                      "email": "avery.nguyen@example.com",
+                      "shipping_address": {
+                        "line1": "1200 Market St",
+                        "line2": "Apt 5B",
+                        "city": "San Francisco",
+                        "state": "CA",
+                        "postal_code": "94103",
+                        "country": "US"
+                      }
+                    },
+                    "provider_id": "prv_01HZ7M3K2N8R9Q",
+                    "tests": [
+                      { "test_code": "GUT-ZOOMER-3.0" },
+                      { "test_code": "MICRONUTRIENTS" }
+                    ],
+                    "sample_collection": {
+                      "method": "home_kit"
+                    },
+                    "metadata": {
+                      "clinic_visit_id": "visit_4471"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Order created.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Order" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "402": { "$ref": "#/components/responses/PaymentRequired" },
+          "422": { "$ref": "#/components/responses/Unprocessable" }
+        }
+      },
       "get": {
-        "description": "Returns all plants from the system that the user has access to",
+        "tags": ["Orders"],
+        "summary": "List orders",
+        "operationId": "listOrders",
+        "description": "Return a paginated list of orders, most recent first.",
+        "parameters": [
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Cursor" },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Filter by order status.",
+            "schema": {
+              "$ref": "#/components/schemas/OrderStatus"
+            }
+          },
+          {
+            "name": "patient_id",
+            "in": "query",
+            "description": "Filter by Vibrant patient ID.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "provider_id",
+            "in": "query",
+            "description": "Filter by provider ID.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "created_after",
+            "in": "query",
+            "description": "ISO 8601 timestamp. Only return orders created at or after this time.",
+            "schema": { "type": "string", "format": "date-time" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of orders.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderList"
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/v1/orders/{order_id}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrderId" }
+      ],
+      "get": {
+        "tags": ["Orders"],
+        "summary": "Retrieve an order",
+        "operationId": "getOrder",
+        "description": "Return the full record for a single order.",
+        "responses": {
+          "200": {
+            "description": "Order found.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Order" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "patch": {
+        "tags": ["Orders"],
+        "summary": "Update an order",
+        "operationId": "updateOrder",
+        "description": "Update mutable fields on an order. Only orders in the `created` or `kit_shipped` states can be modified. Tests cannot be changed once a sample has been received.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/OrderUpdate" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Order updated.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Order" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/Unprocessable" }
+        }
+      }
+    },
+    "/v1/orders/{order_id}/cancel": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrderId" }
+      ],
+      "post": {
+        "tags": ["Orders"],
+        "summary": "Cancel an order",
+        "operationId": "cancelOrder",
+        "description": "Cancel an order. Orders can only be cancelled before the lab marks the sample as `in_progress`.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "enum": ["patient_request", "duplicate", "ordered_in_error", "other"],
+                    "description": "Reason for cancellation."
+                  },
+                  "note": {
+                    "type": "string",
+                    "description": "Optional free-form note shown to the lab.",
+                    "maxLength": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Order cancelled.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Order" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" }
+        }
+      }
+    },
+    "/v1/orders/{order_id}/tracking": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrderId" }
+      ],
+      "get": {
+        "tags": ["Tracking"],
+        "summary": "Get tracking summary",
+        "operationId": "getOrderTracking",
+        "description": "Return the latest known shipping and lab progress for an order.",
+        "responses": {
+          "200": {
+            "description": "Tracking snapshot.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Tracking" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/v1/orders/{order_id}/events": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrderId" }
+      ],
+      "get": {
+        "tags": ["Tracking"],
+        "summary": "List order events",
+        "operationId": "listOrderEvents",
+        "description": "Return the chronological event log for an order. Useful for building timelines.",
+        "parameters": [
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Cursor" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of events.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderEventList"
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/v1/reports": {
+      "get": {
+        "tags": ["Reports"],
+        "summary": "List reports",
+        "operationId": "listReports",
+        "description": "Return a paginated list of completed reports across your account.",
+        "parameters": [
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Cursor" },
+          {
+            "name": "patient_id",
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "released_after",
+            "in": "query",
+            "schema": { "type": "string", "format": "date-time" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of reports.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ReportList" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/v1/reports/{report_id}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/ReportId" }
+      ],
+      "get": {
+        "tags": ["Reports"],
+        "summary": "Retrieve a report",
+        "operationId": "getReport",
+        "description": "Return a structured report including all biomarkers and reference ranges.",
+        "responses": {
+          "200": {
+            "description": "Report found.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Report" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/v1/reports/{report_id}/download": {
+      "parameters": [
+        { "$ref": "#/components/parameters/ReportId" }
+      ],
+      "get": {
+        "tags": ["Reports"],
+        "summary": "Get a report download URL",
+        "operationId": "downloadReport",
+        "description": "Return a short-lived signed URL for the rendered PDF. URLs expire after 5 minutes.",
         "parameters": [
           {
-            "name": "limit",
+            "name": "format",
             "in": "query",
-            "description": "The maximum number of results to return",
+            "description": "Document format.",
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "string",
+              "enum": ["pdf", "json"],
+              "default": "pdf"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Plant response",
+            "description": "Signed URL.",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Plant"
+                  "type": "object",
+                  "required": ["url", "expires_at"],
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "Signed download URL."
+                    },
+                    "expires_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "format": {
+                      "type": "string",
+                      "enum": ["pdf", "json"]
+                    }
                   }
                 }
               }
             }
           },
-          "400": {
-            "description": "Unexpected error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "description": "Creates a new plant in the store",
-        "requestBody": {
-          "description": "Plant to add to the store",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NewPlant"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "plant response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Plant"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "unexpected error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
         }
       }
     },
-    "/plants/{id}": {
-      "delete": {
-        "description": "Deletes a single plant based on the ID supplied",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "ID of plant to delete",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
+    "/v1/orders/{order_id}/reports": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrderId" }
+      ],
+      "get": {
+        "tags": ["Reports"],
+        "summary": "List reports for an order",
+        "operationId": "listOrderReports",
+        "description": "Return all reports generated for the given order. An order with multiple panels typically produces one report per panel.",
+        "responses": {
+          "200": {
+            "description": "Reports for this order.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ReportList" }
+              }
             }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/v1/tests": {
+      "get": {
+        "tags": ["Test catalog"],
+        "summary": "List available tests",
+        "operationId": "listTests",
+        "description": "Return the test panels enabled for your account.",
+        "parameters": [
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Cursor" },
+          {
+            "name": "category",
+            "in": "query",
+            "description": "Filter by category, e.g. `gut`, `hormone`, `nutrition`, `toxins`.",
+            "schema": { "type": "string" }
           }
         ],
         "responses": {
-          "204": {
-            "description": "Plant deleted",
-            "content": {}
-          },
-          "400": {
-            "description": "unexpected error",
+          "200": {
+            "description": "Paginated list of tests.",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/TestList" }
               }
             }
-          }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
         }
       }
     }
   },
   "webhooks": {
-    "/plant/webhook": {
+    "order.status_changed": {
       "post": {
-        "description": "Information about a new plant added to the store",
+        "summary": "Order status changed",
+        "description": "Sent whenever an order transitions to a new status. The payload mirrors the `Order` resource.",
         "requestBody": {
-          "description": "Plant added to the store",
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/NewPlant"
+                "$ref": "#/components/schemas/OrderStatusChangedEvent"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Return a 200 status to indicate that the data was received successfully"
+            "description": "Return 2xx within 5 seconds to acknowledge delivery."
+          }
+        }
+      }
+    },
+    "report.ready": {
+      "post": {
+        "summary": "Report ready",
+        "description": "Sent when a report has been finalized and is available for download.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportReadyEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Return 2xx within 5 seconds to acknowledge delivery."
           }
         }
       }
     }
   },
   "components": {
-    "schemas": {
-      "Plant": {
-        "required": [
-          "name"
-        ],
-        "type": "object",
-        "properties": {
-          "name": {
-            "description": "The name of the plant",
-            "type": "string"
-          },
-          "tag": {
-            "description": "Tag to specify the type",
-            "type": "string"
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "API key",
+        "description": "Pass your API key as `Authorization: Bearer <key>`. Generate keys in the portal under Settings -> API keys."
+      }
+    },
+    "parameters": {
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "description": "Maximum number of records to return. Defaults to 25, max 100.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 25
+        }
+      },
+      "Cursor": {
+        "name": "cursor",
+        "in": "query",
+        "description": "Opaque pagination cursor from `next_cursor` of a previous response.",
+        "schema": { "type": "string" }
+      },
+      "OrderId": {
+        "name": "order_id",
+        "in": "path",
+        "required": true,
+        "description": "Vibrant order identifier, e.g. `ord_01HZ7M3K2N8R9Q`.",
+        "schema": { "type": "string" }
+      },
+      "ReportId": {
+        "name": "report_id",
+        "in": "path",
+        "required": true,
+        "description": "Vibrant report identifier, e.g. `rpt_01HZ7P5XQK4F8T`.",
+        "schema": { "type": "string" }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "The request body could not be parsed.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
           }
         }
       },
-      "NewPlant": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Plant"
-          },
-          {
-            "required": [
-              "id"
-            ],
-            "type": "object",
-            "properties": {
-              "id": {
-                "description": "Identification number of the plant",
-                "type": "integer",
-                "format": "int64"
-              }
-            }
+      "Unauthorized": {
+        "description": "Missing or invalid API key.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
           }
-        ]
+        }
       },
-      "Error": {
-        "required": [
-          "error",
-          "message"
-        ],
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "message": {
-            "type": "string"
+      "PaymentRequired": {
+        "description": "No active payment method or account balance is insufficient.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Resource does not exist or is not visible to your account.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Resource is in a state that does not allow this action.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "Unprocessable": {
+        "description": "Validation failed for one or more fields.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
           }
         }
       }
     },
-    "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer"
+    "schemas": {
+      "Address": {
+        "type": "object",
+        "required": ["line1", "city", "state", "postal_code", "country"],
+        "properties": {
+          "line1": { "type": "string", "maxLength": 120 },
+          "line2": { "type": "string", "maxLength": 120 },
+          "city": { "type": "string", "maxLength": 80 },
+          "state": { "type": "string", "description": "Two-letter US state code or ISO subdivision." },
+          "postal_code": { "type": "string", "maxLength": 16 },
+          "country": { "type": "string", "description": "ISO 3166-1 alpha-2 country code.", "default": "US" }
+        }
+      },
+      "PatientInput": {
+        "type": "object",
+        "required": ["first_name", "last_name", "date_of_birth", "sex", "shipping_address"],
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "description": "Your system's identifier for the patient. Stored on the order for reconciliation."
+          },
+          "first_name": { "type": "string" },
+          "last_name": { "type": "string" },
+          "date_of_birth": { "type": "string", "format": "date" },
+          "sex": {
+            "type": "string",
+            "enum": ["female", "male", "other", "unknown"],
+            "description": "Biological sex used to choose appropriate reference ranges."
+          },
+          "email": { "type": "string", "format": "email" },
+          "phone": { "type": "string" },
+          "shipping_address": { "$ref": "#/components/schemas/Address" }
+        }
+      },
+      "TestSelection": {
+        "type": "object",
+        "required": ["test_code"],
+        "properties": {
+          "test_code": {
+            "type": "string",
+            "description": "Test panel code. See `GET /v1/tests`.",
+            "example": "GUT-ZOOMER-3.0"
+          },
+          "addons": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Optional add-on biomarker codes for this panel."
+          }
+        }
+      },
+      "SampleCollection": {
+        "type": "object",
+        "required": ["method"],
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": ["home_kit", "in_clinic_draw", "patient_service_center"],
+            "description": "How the sample will be collected."
+          },
+          "kit_shipping_speed": {
+            "type": "string",
+            "enum": ["standard", "expedited"],
+            "default": "standard"
+          },
+          "service_center_id": {
+            "type": "string",
+            "description": "Required when `method` is `patient_service_center`."
+          }
+        }
+      },
+      "OrderCreate": {
+        "type": "object",
+        "required": ["patient", "provider_id", "tests", "sample_collection"],
+        "properties": {
+          "patient": { "$ref": "#/components/schemas/PatientInput" },
+          "provider_id": {
+            "type": "string",
+            "description": "Vibrant provider identifier ordering this panel."
+          },
+          "tests": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "$ref": "#/components/schemas/TestSelection" }
+          },
+          "sample_collection": { "$ref": "#/components/schemas/SampleCollection" },
+          "billing": {
+            "type": "object",
+            "properties": {
+              "payer": {
+                "type": "string",
+                "enum": ["account", "patient", "insurance"],
+                "default": "account"
+              },
+              "payment_method_id": {
+                "type": "string",
+                "description": "Required when `payer` is `patient`."
+              }
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "description": "Up to 20 string key/value pairs for your own bookkeeping."
+          },
+          "idempotency_key": {
+            "type": "string",
+            "description": "Optional. Sending the same idempotency key returns the original order without creating a duplicate."
+          }
+        }
+      },
+      "OrderUpdate": {
+        "type": "object",
+        "description": "All fields are optional. Only present fields are updated.",
+        "properties": {
+          "patient": {
+            "type": "object",
+            "properties": {
+              "email": { "type": "string", "format": "email" },
+              "phone": { "type": "string" },
+              "shipping_address": { "$ref": "#/components/schemas/Address" }
+            }
+          },
+          "tests": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TestSelection" },
+            "description": "Replace the test list. Only allowed before the sample has been received."
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          }
+        }
+      },
+      "OrderStatus": {
+        "type": "string",
+        "enum": [
+          "created",
+          "kit_shipped",
+          "sample_received",
+          "in_progress",
+          "completed",
+          "cancelled",
+          "rejected"
+        ],
+        "description": "Lifecycle state of the order."
+      },
+      "Order": {
+        "type": "object",
+        "required": ["id", "status", "patient", "provider_id", "tests", "created_at"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "ord_01HZ7M3K2N8R9Q"
+          },
+          "status": { "$ref": "#/components/schemas/OrderStatus" },
+          "patient": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "example": "pat_01HZ7M3K2N8R9Q" },
+              "external_id": { "type": "string" },
+              "first_name": { "type": "string" },
+              "last_name": { "type": "string" },
+              "date_of_birth": { "type": "string", "format": "date" },
+              "sex": { "type": "string" }
+            }
+          },
+          "provider_id": { "type": "string" },
+          "tests": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TestSelection" }
+          },
+          "sample_collection": { "$ref": "#/components/schemas/SampleCollection" },
+          "billing": {
+            "type": "object",
+            "properties": {
+              "payer": { "type": "string" },
+              "amount_cents": { "type": "integer" },
+              "currency": { "type": "string", "default": "USD" }
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "OrderList": {
+        "type": "object",
+        "required": ["data", "has_more"],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Order" }
+          },
+          "has_more": { "type": "boolean" },
+          "next_cursor": { "type": "string", "nullable": true }
+        }
+      },
+      "Tracking": {
+        "type": "object",
+        "required": ["order_id", "status", "updated_at"],
+        "properties": {
+          "order_id": { "type": "string" },
+          "status": { "$ref": "#/components/schemas/OrderStatus" },
+          "shipment": {
+            "type": "object",
+            "properties": {
+              "carrier": { "type": "string", "example": "UPS" },
+              "tracking_number": { "type": "string" },
+              "tracking_url": { "type": "string", "format": "uri" },
+              "estimated_delivery": { "type": "string", "format": "date" }
+            }
+          },
+          "lab": {
+            "type": "object",
+            "properties": {
+              "received_at": { "type": "string", "format": "date-time" },
+              "expected_completion": { "type": "string", "format": "date" }
+            }
+          },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "OrderEvent": {
+        "type": "object",
+        "required": ["id", "type", "occurred_at"],
+        "properties": {
+          "id": { "type": "string" },
+          "type": {
+            "type": "string",
+            "enum": [
+              "order.created",
+              "order.kit_shipped",
+              "order.sample_received",
+              "order.in_progress",
+              "order.completed",
+              "order.cancelled",
+              "order.rejected",
+              "report.ready"
+            ]
+          },
+          "occurred_at": { "type": "string", "format": "date-time" },
+          "data": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Event-specific payload. Shape depends on `type`."
+          }
+        }
+      },
+      "OrderEventList": {
+        "type": "object",
+        "required": ["data", "has_more"],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/OrderEvent" }
+          },
+          "has_more": { "type": "boolean" },
+          "next_cursor": { "type": "string", "nullable": true }
+        }
+      },
+      "Biomarker": {
+        "type": "object",
+        "required": ["code", "name", "value"],
+        "properties": {
+          "code": { "type": "string", "example": "VITD-25-OH" },
+          "name": { "type": "string", "example": "25-Hydroxy Vitamin D" },
+          "value": {
+            "oneOf": [
+              { "type": "number" },
+              { "type": "string" }
+            ]
+          },
+          "unit": { "type": "string", "example": "ng/mL" },
+          "reference_range": {
+            "type": "object",
+            "properties": {
+              "low": { "type": "number" },
+              "high": { "type": "number" }
+            }
+          },
+          "interpretation": {
+            "type": "string",
+            "enum": ["normal", "borderline", "out_of_range", "critical"]
+          }
+        }
+      },
+      "Report": {
+        "type": "object",
+        "required": ["id", "order_id", "status", "released_at"],
+        "properties": {
+          "id": { "type": "string", "example": "rpt_01HZ7P5XQK4F8T" },
+          "order_id": { "type": "string" },
+          "test_code": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["draft", "released", "amended", "withdrawn"]
+          },
+          "released_at": { "type": "string", "format": "date-time" },
+          "biomarkers": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Biomarker" }
+          },
+          "summary": {
+            "type": "string",
+            "description": "Optional clinician-facing summary."
+          }
+        }
+      },
+      "ReportList": {
+        "type": "object",
+        "required": ["data", "has_more"],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Report" }
+          },
+          "has_more": { "type": "boolean" },
+          "next_cursor": { "type": "string", "nullable": true }
+        }
+      },
+      "Test": {
+        "type": "object",
+        "required": ["code", "name", "category", "sample_type"],
+        "properties": {
+          "code": { "type": "string", "example": "GUT-ZOOMER-3.0" },
+          "name": { "type": "string", "example": "Gut Zoomer 3.0" },
+          "category": { "type": "string", "example": "gut" },
+          "sample_type": {
+            "type": "string",
+            "enum": ["blood", "stool", "urine", "saliva"]
+          },
+          "fasting_required": { "type": "boolean" },
+          "turnaround_days": {
+            "type": "object",
+            "properties": {
+              "min": { "type": "integer" },
+              "max": { "type": "integer" }
+            }
+          },
+          "list_price_cents": { "type": "integer" }
+        }
+      },
+      "TestList": {
+        "type": "object",
+        "required": ["data", "has_more"],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Test" }
+          },
+          "has_more": { "type": "boolean" },
+          "next_cursor": { "type": "string", "nullable": true }
+        }
+      },
+      "OrderStatusChangedEvent": {
+        "type": "object",
+        "required": ["id", "type", "created_at", "data"],
+        "properties": {
+          "id": { "type": "string", "example": "evt_01HZ8R2W6F4P8Q" },
+          "type": {
+            "type": "string",
+            "enum": ["order.status_changed"]
+          },
+          "created_at": { "type": "string", "format": "date-time" },
+          "data": {
+            "type": "object",
+            "required": ["order", "previous_status"],
+            "properties": {
+              "order": { "$ref": "#/components/schemas/Order" },
+              "previous_status": { "$ref": "#/components/schemas/OrderStatus" }
+            }
+          }
+        }
+      },
+      "ReportReadyEvent": {
+        "type": "object",
+        "required": ["id", "type", "created_at", "data"],
+        "properties": {
+          "id": { "type": "string", "example": "evt_01HZ8R2W6F4P8Q" },
+          "type": {
+            "type": "string",
+            "enum": ["report.ready"]
+          },
+          "created_at": { "type": "string", "format": "date-time" },
+          "data": {
+            "type": "object",
+            "required": ["report"],
+            "properties": {
+              "report": { "$ref": "#/components/schemas/Report" }
+            }
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": ["type", "message"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "invalid_request",
+                  "authentication_error",
+                  "permission_error",
+                  "not_found",
+                  "conflict",
+                  "validation_error",
+                  "rate_limited",
+                  "server_error"
+                ]
+              },
+              "code": {
+                "type": "string",
+                "description": "Stable, machine-friendly error code."
+              },
+              "message": { "type": "string" },
+              "param": {
+                "type": "string",
+                "description": "JSON pointer to the offending field, when known."
+              },
+              "request_id": { "type": "string" }
+            }
+          }
+        }
       }
     }
   }

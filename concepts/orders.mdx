@@ -1,0 +1,117 @@
+---
+title: "Orders"
+description: "The order resource models a single lab requisition from creation through completion."
+icon: "clipboard-list"
+---
+
+An **order** represents a request from a provider to run one or more test panels for a patient. The order resource is the spine of the Portal API — it ties together the patient, provider, requested tests, billing, sample collection logistics, and the resulting reports.
+
+## Anatomy
+
+```json
+{
+  "id": "ord_01HZ7M3K2N8R9Q",
+  "status": "kit_shipped",
+  "patient": {
+    "id": "pat_01HZ7M3K2N8R9Q",
+    "external_id": "pat_ext_8821",
+    "first_name": "Avery",
+    "last_name": "Nguyen",
+    "date_of_birth": "1989-03-14",
+    "sex": "female"
+  },
+  "provider_id": "prv_01HZ7M3K2N8R9Q",
+  "tests": [
+    { "test_code": "GUT-ZOOMER-3.0" },
+    { "test_code": "MICRONUTRIENTS" }
+  ],
+  "sample_collection": {
+    "method": "home_kit",
+    "kit_shipping_speed": "standard"
+  },
+  "billing": {
+    "payer": "account",
+    "amount_cents": 79900,
+    "currency": "USD"
+  },
+  "metadata": {
+    "clinic_visit_id": "visit_4471"
+  },
+  "created_at": "2026-05-04T14:22:11Z",
+  "updated_at": "2026-05-05T09:10:42Z"
+}
+```
+
+## Lifecycle
+
+Every order moves through a predictable state machine. Each transition emits an `order.status_changed` event.
+
+<Steps>
+  <Step title="created">
+    Order accepted. Kit not yet shipped (or in-clinic draw not yet performed).
+  </Step>
+  <Step title="kit_shipped">
+    Home kit handed to the carrier. `tracking_number` is populated. Skipped for `in_clinic_draw` orders.
+  </Step>
+  <Step title="sample_received">
+    Lab has received and accessioned the sample. The order can no longer be modified or cancelled.
+  </Step>
+  <Step title="in_progress">
+    Sample is being processed. Expected completion is available on the tracking endpoint.
+  </Step>
+  <Step title="completed">
+    All ordered panels finalized. Reports are available via the report endpoints.
+  </Step>
+</Steps>
+
+Two terminal states branch off the main path:
+
+<CardGroup cols={2}>
+  <Card title="cancelled" icon="circle-xmark">
+    Cancellable any time before `sample_received`. Triggered by `POST /v1/orders/{id}/cancel`.
+  </Card>
+  <Card title="rejected" icon="triangle-exclamation">
+    Lab cannot process the sample (insufficient volume, contaminated, expired). A new order is required.
+  </Card>
+</CardGroup>
+
+## Identifiers
+
+All order IDs use the `ord_` prefix followed by a 26-character ULID (Crockford base32). They are URL-safe and case-sensitive.
+
+```
+ord_01HZ7M3K2N8R9Q1XYZB7C5D6E
+```
+
+## Idempotency
+
+Pass `idempotency_key` in the create body to make `POST /v1/orders` safe to retry. Vibrant stores the key for 24 hours; subsequent requests with the same key return the original order without creating a duplicate.
+
+```json
+{
+  "idempotency_key": "create-order-visit-4471",
+  "patient": { "..." }
+}
+```
+
+## Mutability rules
+
+| Field | Editable while `created` / `kit_shipped` | After `sample_received` |
+| --- | --- | --- |
+| `patient.email`, `patient.phone` | Yes | Yes |
+| `patient.shipping_address` | Yes | No |
+| `tests` | Yes | No |
+| `metadata` | Yes | Yes |
+
+To change anything else, cancel the order and create a new one.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Place an order" icon="flask" href="/guides/place-order">
+    Walk through the full create payload.
+  </Card>
+  <Card title="API reference" icon="terminal" href="/api-reference/orders/create">
+    All order endpoints with live request builders.
+  </Card>
+</CardGroup>
